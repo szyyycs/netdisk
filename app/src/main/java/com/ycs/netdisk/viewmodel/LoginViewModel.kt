@@ -1,10 +1,11 @@
-package com.ycs.netdisk
+package com.ycs.netdisk.viewmodel
 
-import android.util.Log
 import androidx.compose.runtime.*
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.tencent.mmkv.MMKV
+import com.ycs.netdisk.Account
+
 
 /**
  * <pre>
@@ -20,16 +21,18 @@ class LoginViewModel : ViewModel() {
     var isLogin = MutableLiveData(false)
     var isAddAccountEmpty=MutableLiveData(false)
     var isDelete = MutableLiveData(false)
+
     val defaultMMKV: MMKV by lazy {
         MMKV.defaultMMKV()
     }
+    val mmkv: MMKV by lazy {
+        MMKV.mmkvWithID("login")
+    }
     var indexShow = 0
-    val inputIP = MutableLiveData("")
+    val inputIP = MutableLiveData("127.0.0.1")
     val inputName = MutableLiveData("")
     val inputPwd = MutableLiveData("")
-    init {
 
-    }
     fun initData() {
         accountList.clear()
         val keys = defaultMMKV.allKeys()
@@ -42,7 +45,6 @@ class LoginViewModel : ViewModel() {
             }
 
         }
-
 
         if (accountList.size <= 0) {
             isAddAccountEmpty.value = true
@@ -69,6 +71,9 @@ class LoginViewModel : ViewModel() {
         }
 
         return true
+    }
+    fun login(name:String , pwd:String){
+
     }
 
 }

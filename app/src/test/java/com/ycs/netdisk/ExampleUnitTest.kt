@@ -13,6 +13,6 @@ class ExampleUnitTest {
     @Test
     fun addition_isCorrect() {
 
-        assertEquals(4, "4".toInt())
+        assertEquals(0, (99f.div(100f)).toFloat())
     }
 }

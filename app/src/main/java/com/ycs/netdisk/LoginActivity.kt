@@ -2,9 +2,13 @@ package com.ycs.netdisk
 
 
 import android.app.Activity
-import android.app.Application
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -54,6 +58,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.tencent.mmkv.MMKV
 import com.ycs.netdisk.ui.theme.*
+import com.ycs.netdisk.Util.Companion.LOGIN_ACTION
+import com.ycs.netdisk.viewmodel.LoginViewModel
+
 
 class LoginActivity : ComponentActivity() {
 
@@ -66,12 +73,18 @@ class LoginActivity : ComponentActivity() {
     private val context by lazy {
         this@LoginActivity
     }
-
+    private var connectService: ConnectService? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initLibrary()
         initView()
         viewModel.initData()
+        initBinder()
+    }
+
+    private fun initBinder() {
+        val intent = Intent(this, ConnectService::class.java)
+        bindService(intent, conn, Context.BIND_AUTO_CREATE)
     }
 
     private fun initLibrary() {
@@ -126,8 +139,43 @@ class LoginActivity : ComponentActivity() {
         }
 
     }
+    val conn: ServiceConnection = object : ServiceConnection {
+        override fun onServiceDisconnected(name: ComponentName) {}
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            //返回一个MsgService对象
+            Log.i("yyy", "onServiceConnected$service")
+            connectService = (service as ConnectService.MyBinder).getService()
+            connectService?.setLoginListener(loginListener)
 
+        }
+    }
+    val loginListener:ConnectService.LoginListener=object :ConnectService.LoginListener{
+        override fun onSuccess() {
+            viewModel.mmkv.encode("isLogin",true)
+            runOnUiThread{
+                Toast.makeText(context, "登录成功！", Toast.LENGTH_SHORT).show()
+            }
+            viewModel.defaultMMKV.encode(viewModel.inputName.value, viewModel.inputIP.value)
+            context.startActivity(
+                Intent(
+                    context,
+                    MainActivity::class.java
+                )
+            )
+            context.finish()
+        }
 
+        override fun onFail(msg:String) {
+            runOnUiThread{
+                Toast.makeText(context, "$msg", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+    }
+    override fun onDestroy() {
+        unbindService(conn)
+        super.onDestroy()
+    }
 }
 
 @Composable
@@ -374,7 +422,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                     viewModel.inputName.value =
                                         viewModel.accountList[indexShow].name
                                     viewModel.inputPwd.value = ""
-                                    ipcheck=false
+                                    ipcheck = false
                                 })
                         })
                 }
@@ -396,7 +444,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                     onTap = {
                                         viewModel.isExpanded.value = false
                                         viewModel.isLogin.value = true
-                                        viewModel.inputIP.value = ""
+                                        //viewModel.inputIP.value = ""
                                         viewModel.inputName.value = ""
                                         viewModel.inputPwd.value = ""
                                         viewModel.isAddAccountEmpty.value = true
@@ -454,7 +502,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                 // 点击事件
                                 onTap = {
                                     viewModel.isLogin.value = true
-                                    ipcheck=false
+                                    ipcheck = false
                                 })
                         }
                     ) {
@@ -521,7 +569,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                             text = inputIP!!,
                                             onValueChange = {
                                                 viewModel.inputIP.value = it
-                                                ipcheck=false
+                                                ipcheck = false
                                             },
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -540,7 +588,8 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                             startIcon = R.drawable.ip,
                                             iconSpacing = 16.dp,
                                             textStyle = Typography.bodyMedium,
-
+                                            enabled = false,
+                                            readOnly = true,
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                         )
 
@@ -571,7 +620,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                                 .fillMaxWidth()
                                                 .padding(
                                                     start = 16.dp,
-                                                    top = if(!ipcheck)20.dp else 0.dp,
+                                                    top = if (!ipcheck) 20.dp else 0.dp,
                                                     end = 16.dp
                                                 )
                                                 .height(50.dp)
@@ -654,8 +703,8 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                     )
                     val horizontalGradientBrushLogin = Brush.horizontalGradient(
                         colors = listOf(
-                            BLUE,
-                            BLUE2
+                            BLUE2,
+                            BLUE3
                         )
                     )
                     if (!isExpanded!!) {
@@ -669,28 +718,24 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                             .align(Alignment.CenterHorizontally),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             onClick = {
-                                ipcheck=false;
+                                ipcheck = false;
                                 if (!viewModel.isLogin.value!!) {
                                     viewModel.isLogin.value = true
                                 } else {
                                     if (!viewModel.checkIp()) {
                                         shake = !shake
-                                        ipcheck=true
+                                        ipcheck = true
                                     } else if (inputName!!.isBlank()) {
                                         shake2 = !shake2
                                     } else if (inputPwd!!.isBlank()) {
                                         shake3 = !shake3
                                     } else {
-                                        viewModel.defaultMMKV.encode(inputName, inputIP)
-                                        viewModel.accountList.add(Account(inputName!!, inputIP!!))
-                                        Toast.makeText(context, "登录成功！", Toast.LENGTH_SHORT).show()
-                                        context.startActivity(
-                                            Intent(
-                                                context,
-                                                MainActivity::class.java
-                                            )
-                                        )
-                                        context.finish()
+                                        //login(name=inputName, pwd=inputPwd)
+                                        val intent = Intent(LOGIN_ACTION)
+                                        intent.putExtra("name", inputName)
+                                        intent.putExtra("pwd",inputPwd)
+                                        context.sendBroadcast(intent)
+
                                     }
 
                                 }
@@ -699,7 +744,6 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                 text = "登录",
                                 color = Color.White
                             )
-
                         }
 
                         AnimatedVisibility(visible = !login!!) {
