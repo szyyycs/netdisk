@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -57,10 +59,7 @@ import com.google.accompanist.placeholder.material.fade
 import com.google.accompanist.placeholder.material.placeholder
 import com.ycs.netdisk.Util.Companion.LIST_ACTION
 import com.ycs.netdisk.Util.Companion.TAG
-import com.ycs.netdisk.ui.theme.BLUE2
-import com.ycs.netdisk.ui.theme.LIGHTYELLO
-import com.ycs.netdisk.ui.theme.NetDiskTheme
-import com.ycs.netdisk.ui.theme.YELLO
+import com.ycs.netdisk.ui.theme.*
 import com.ycs.netdisk.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -135,13 +134,16 @@ class MainActivity : ComponentActivity() {
                     } else {
                         var s = item.name.split(".")
                         if (s.size == 2) {
-                            type = when (s[1]) {
+                            type = when (s[1].toLowerCase()) {
                                 "pdf" -> 2
-                                "jpg", "png" -> 3
+                                "jpg", "png", "psd", "bmp", "svg" -> 3
                                 "docx", "doc" -> 4
                                 "xlsx", "xlx" -> 5
-                                "zip" -> 6
+                                "zip", "rar" -> 6
                                 "txt" -> 7
+                                "ppt", "pptx" -> 9
+                                "mp4", "avi", "m4v", "wmv", "mkv" -> 10
+                                "apk" -> 11
                                 else -> 8
                             }
                         }
@@ -191,7 +193,7 @@ class MainActivity : ComponentActivity() {
         override fun onServiceDisconnected(name: ComponentName) {}
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             //返回一个MsgService对象
-            Log.i("yyy", "onServiceConnected$service")
+            //Log.i("yyy", "onServiceConnected$service")
             viewModel.connectService = (service as ConnectService.MyBinder).getService()
             viewModel.connectService?.setListDirListener(listDirListener)
             viewModel.connectService?.setDownloadListener(downloadListener)
@@ -211,6 +213,7 @@ class MainActivity : ComponentActivity() {
         initView(viewModel, context)
         initBinder()
         viewModel.delayError(5000)
+
     }
 
     private fun initBinder() {
@@ -316,9 +319,15 @@ fun AddMoreDialog(openDialog: MutableState<Boolean>, activity: Activity, viewMod
                         fontSize = 15.sp
                     )
                     Text(
-                        text = "账号管理",
+                        text = "我的下载",
                         modifier = Modifier
                             .clickable {
+                                activity.startActivity(
+                                    Intent(
+                                        activity,
+                                        DownloadActivity::class.java
+                                    )
+                                )
 
                             }
                             .padding(start = 20.dp, end = 20.dp, top = 5.dp, bottom = 25.dp),
@@ -332,7 +341,7 @@ fun AddMoreDialog(openDialog: MutableState<Boolean>, activity: Activity, viewMod
 }
 
 @Composable
-fun AddSortDialog(openDialog: MutableState<Boolean>,activity: Activity) {
+fun AddSortDialog(openDialog: MutableState<Boolean>, activity: Activity) {
 
     if (openDialog.value) {
         Dialog(
@@ -389,7 +398,7 @@ fun MainUI(viewModel: MainViewModel, activity: Activity) {
     val openDialog = remember {
         mutableStateOf(false)
     }
-
+    val searchState by viewModel.searchText.observeAsState()
     val openMoreDialog = remember {
         mutableStateOf(false)
     }
@@ -481,6 +490,7 @@ fun MainUI(viewModel: MainViewModel, activity: Activity) {
 //                    textAlign = TextAlign.Center
 //                )
 
+
             }
 
             Image(
@@ -544,9 +554,46 @@ fun MainUI(viewModel: MainViewModel, activity: Activity) {
                 contentDescription = ""
             )
         }
+        Box(
+            Modifier
+                .height(50.dp)
+            //.background(Color(0xff444444))
+        ) {
+            CustomEdit(
+                text = searchState!!,
+                onValueChange = {
+                    viewModel.searchList.clear()
+                    viewModel.searchText.value = it
+                    for (i in viewModel.fileList) {
+                        if (i.name.contains(it)) {
+                            viewModel.searchList.add(i)
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = 10.dp,
+                        end = 16.dp
+                    )
+                    .height(30.dp)
+                    .background(
+                        Color(0xFFf5f5f5),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 14.dp),
+                hint = "搜索文件",
+                startIcon = R.drawable.search,
+                iconSpacing = 10.dp,
+                iconPadding = 8.dp,
+                textStyle = Typography.bodyMedium,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            )
+        }
         Row(
             modifier = Modifier
-                .padding(top = 15.dp, bottom = 5.dp)
+                //.padding(top = 15.dp, bottom = 5.dp)
                 .height(35.dp)
                 .padding(start = 20.dp)
         ) {
@@ -657,7 +704,7 @@ fun MainUI(viewModel: MainViewModel, activity: Activity) {
                     LocalOverscrollConfiguration provides null
                 ) {
                     LazyColumn {
-                        itemsIndexed(viewModel.fileList) { index, file ->
+                        itemsIndexed(if (searchState?.length == 0) viewModel.fileList else viewModel.searchList) { index, file ->
                             ItemFile(file = file, modifier = Modifier
                                 .clickable {
                                     if (file.type == 1) {
@@ -767,7 +814,7 @@ fun ErrorPage(modifier: Modifier, viewModel: MainViewModel) {
         ) {
             Column(modifier = Modifier.align(Alignment.Center)) {
                 Image(
-                    painter = painterResource(id = R.drawable.empty2),
+                    painter = painterResource(id = R.drawable.error),
                     contentDescription = "",
                     modifier = Modifier
                         .align(alignment = Alignment.CenterHorizontally)
@@ -804,11 +851,11 @@ fun EmptyPage(viewModel: MainViewModel) {
                     contentDescription = "",
                     modifier = Modifier
                         .align(alignment = Alignment.CenterHorizontally)
-                        .size(300.dp)
+                        .size(180.dp)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "当前目录为空",
+                    text = "没有文件",
                     modifier = Modifier.align(alignment = Alignment.CenterHorizontally),
                     color = Color(0xffaaaaaa),
                     textAlign = TextAlign.Center
@@ -922,13 +969,11 @@ fun DefaultPreview2() {
                     progress = 0.5f,
                     modifier = Modifier
                         .size(18.dp)
-                        .align(Alignment.CenterHorizontally)
-
-                    ,
+                        .align(Alignment.CenterHorizontally),
                     color = BLUE2,
                     strokeWidth = 15.dp,
 
-                )
+                    )
 //                Text(
 //                    text = "下载进度：20%",
 //                    color = Color(0xff888888),
@@ -1063,6 +1108,9 @@ fun ItemFile(file: FileItem, modifier: Modifier) {
                             5 -> R.drawable.xlsx
                             6 -> R.drawable.zip
                             7 -> R.drawable.txt
+                            9 -> R.drawable.ppt
+                            10 -> R.drawable.mp4
+                            11 -> R.drawable.apk
                             else -> R.drawable.unknow
                         }
                     ),

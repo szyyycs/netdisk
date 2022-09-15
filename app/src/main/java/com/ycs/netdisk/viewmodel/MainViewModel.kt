@@ -22,12 +22,14 @@ import com.ycs.netdisk.LoginActivity
  */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     var fileList: MutableList<FileItem> = mutableStateListOf()
+    var searchList: MutableList<FileItem> = mutableStateListOf()
     var dirList: MutableList<String> = mutableStateListOf()
     var isEmpty = MutableLiveData(false)
     var isLoading=MutableLiveData(true)
     var progress=MutableLiveData(0f)
     var isError=MutableLiveData(false)
     var connectService: ConnectService? = null
+    var searchText=MutableLiveData("")
     var isRefreshing=false
     val mmkv: MMKV by lazy {
         MMKV.mmkvWithID("login")

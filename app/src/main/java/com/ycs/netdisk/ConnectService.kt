@@ -202,6 +202,7 @@ class ConnectService : Service() {
             } catch (e: RemoteException) {
                 e.printStackTrace()
             }
+            Log.d(TAG, "onServiceConnected: "+getMeidId())
 
         }
 
@@ -212,12 +213,12 @@ class ConnectService : Service() {
         }
     }
 
-    fun login(name: String, pwd: String) {
+    fun login(name: String, pwd: String,ip:String) {
         try {
             if (iConfigService != null && connected) {
                 GlobalScope.launch(Dispatchers.IO) {
                     val result = async {
-                        iConfigService?.login(name, pwd)
+                        iConfigService?.login(name, pwd , ip)
                         Log.d(TAG, "login name:${name}\npwd:$pwd)")
                     }
                     val response = result.await()
@@ -245,7 +246,17 @@ class ConnectService : Service() {
             e.printStackTrace()
         }
     }
-
+    fun getMeidId():String?{
+        try {
+            if (iConfigService != null && connected) {
+                Log.d(TAG, "getMeidId: ")
+                return iConfigService?.getMeidId()
+            }
+        }catch (e: RemoteException){
+            e.printStackTrace()
+        }
+        return ""
+    }
     fun listDir(path: String) {
         try {
             if (iConfigService != null && connected) {
@@ -310,7 +321,8 @@ class ConnectService : Service() {
                 LOGIN_ACTION -> {
                     val name: String = intent?.getStringExtra("name").toString()
                     val pwd: String = intent?.getStringExtra("pwd").toString()
-                    login(name = name, pwd = pwd)
+                    val ip: String = intent?.getStringExtra("ip").toString()
+                    login(name = name, pwd = pwd , ip = ip)
                 }
                 LIST_ACTION -> {
                     val path: String = intent?.getStringExtra("path").toString()

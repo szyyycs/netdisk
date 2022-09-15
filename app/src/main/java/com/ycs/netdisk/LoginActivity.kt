@@ -1,13 +1,18 @@
 package com.ycs.netdisk
 
 
+import android.Manifest
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -42,7 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -54,11 +58,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.tencent.mmkv.MMKV
-import com.ycs.netdisk.ui.theme.*
 import com.ycs.netdisk.Util.Companion.LOGIN_ACTION
+import com.ycs.netdisk.Util.Companion.TAG
+import com.ycs.netdisk.ui.theme.*
 import com.ycs.netdisk.viewmodel.LoginViewModel
 
 
@@ -80,8 +86,78 @@ class LoginActivity : ComponentActivity() {
         initView()
         viewModel.initData()
         initBinder()
-    }
+        Handler().postDelayed({
+            getDeviceId()
+        },2000)
 
+    }
+    private fun getDeviceId() {
+        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.Q){
+            Log.d(TAG, "getDeviceId: 1")
+            var id=connectService?.getMeidId()
+            id?.let {
+                viewModel.inputDeviceId.value=id
+            }
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.READ_PHONE_STATE
+                )
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(this, viewModel.permissions, 111)
+            } else {
+                try{
+                    var telephonyManager=this.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                    var imei=telephonyManager.deviceId
+                    Log.d(TAG, "imei: $imei")
+                    viewModel.inputDeviceId.value=imei
+                    if(imei!=null){
+                        viewModel.inputDeviceId.value=imei
+                    }
+                }catch (e:Exception){
+                    e.printStackTrace()
+
+                }
+            }
+        }
+    }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissionss: Array<String?>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissionss, grantResults)
+        if (requestCode == 111) {
+            Log.e("yyy", "获取权限返回")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.READ_PHONE_STATE
+                    )
+                    != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Toast.makeText(this, "未允许权限，需要同意权限后才可以使用", Toast.LENGTH_SHORT).show()
+                    ActivityCompat.requestPermissions(this, viewModel.permissions, 111)
+                } else {
+                    try{
+                        var telephonyManager=this.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                        var imei=telephonyManager.deviceId
+                        Log.d(TAG, "imei: $imei")
+                        viewModel.inputDeviceId.value=imei
+                        if(imei!=null){
+                            viewModel.inputDeviceId.value=imei
+                        }
+                    }catch (e:Exception){
+                        e.printStackTrace()
+
+                    }
+                }
+            }
+        }
+    }
     private fun initBinder() {
         val intent = Intent(this, ConnectService::class.java)
         bindService(intent, conn, Context.BIND_AUTO_CREATE)
@@ -139,20 +215,21 @@ class LoginActivity : ComponentActivity() {
         }
 
     }
+
     val conn: ServiceConnection = object : ServiceConnection {
         override fun onServiceDisconnected(name: ComponentName) {}
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             //返回一个MsgService对象
-            Log.i("yyy", "onServiceConnected$service")
+          //  Log.i("yyy", "onServiceConnected$service")
             connectService = (service as ConnectService.MyBinder).getService()
             connectService?.setLoginListener(loginListener)
 
         }
     }
-    val loginListener:ConnectService.LoginListener=object :ConnectService.LoginListener{
+    val loginListener: ConnectService.LoginListener = object : ConnectService.LoginListener {
         override fun onSuccess() {
-            viewModel.mmkv.encode("isLogin",true)
-            runOnUiThread{
+            viewModel.mmkv.encode("isLogin", viewModel.inputName.value)
+            runOnUiThread {
                 Toast.makeText(context, "登录成功！", Toast.LENGTH_SHORT).show()
             }
             viewModel.defaultMMKV.encode(viewModel.inputName.value, viewModel.inputIP.value)
@@ -165,13 +242,14 @@ class LoginActivity : ComponentActivity() {
             context.finish()
         }
 
-        override fun onFail(msg:String) {
-            runOnUiThread{
+        override fun onFail(msg: String) {
+            runOnUiThread {
                 Toast.makeText(context, "$msg", Toast.LENGTH_SHORT).show()
             }
         }
 
     }
+
     override fun onDestroy() {
         unbindService(conn)
         super.onDestroy()
@@ -219,8 +297,8 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
     val isDelete by viewModel.isDelete.observeAsState()
     val isAddAccountEmpty by viewModel.isAddAccountEmpty.observeAsState()
     var indexShow = 0
-    var height = animateDpAsState(targetValue = if (login!!) 250.dp else 95.dp)
-    var boxHeight = animateDpAsState(targetValue = if (login!!) 250.dp else 80.dp)
+    var height = animateDpAsState(targetValue = if (login!!) 320.dp else 95.dp)
+    var boxHeight = animateDpAsState(targetValue = if (login!!) 320.dp else 80.dp)
     var ipcheck by remember {
         mutableStateOf(false)
     }
@@ -237,6 +315,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
     val inputIP by viewModel.inputIP.observeAsState()
     val inputName by viewModel.inputName.observeAsState()
     val inputPwd by viewModel.inputPwd.observeAsState()
+    val inputDeviceId by viewModel.inputDeviceId.observeAsState()
     var shake by remember { mutableStateOf(false) }
     val transition = updateTransition(targetState = shake, label = "shake")
     val shakeOffset by transition.animateDp(
@@ -312,6 +391,32 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
     ) { state ->
         if (state) 0.dp else 0.dp
     }
+    var shake4 by remember { mutableStateOf(false) }
+    val transition4 = updateTransition(targetState = shake4, label = "shake")
+    val shakeOffset4 by transition4.animateDp(
+        transitionSpec = {
+            keyframes {
+                //持续时间，
+                durationMillis = 300
+                0.dp at 0 //如果觉得这个动画太硬朗，在这里是可以制定插值函数的。比如下面的
+                (-20).dp at 25 with LinearOutSlowInEasing //自己翻译吧
+                0.dp at 50
+                20.dp at 75
+                0.dp at 100
+                (-10).dp at 125
+                0.dp at 150
+                10.dp at 175
+                0.dp at 200
+                (-5).dp at 225
+                0.dp at 250
+                5.dp at 275
+                0.dp at 300
+            }
+        }, label = "shakeOffset"
+    ) { state ->
+        if (state) 0.dp else 0.dp
+    }
+
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -348,6 +453,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                             viewModel.accountList[indexShow].name
                                         viewModel.inputIP.value =
                                             viewModel.accountList[indexShow].ip
+
                                     }
                                 })
                         }
@@ -377,6 +483,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .align(Alignment.CenterHorizontally)
         ) {
             //title
@@ -422,6 +529,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                     viewModel.inputName.value =
                                         viewModel.accountList[indexShow].name
                                     viewModel.inputPwd.value = ""
+                                    //viewModel.inputDeviceId.value = ""
                                     ipcheck = false
                                 })
                         })
@@ -447,6 +555,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                         //viewModel.inputIP.value = ""
                                         viewModel.inputName.value = ""
                                         viewModel.inputPwd.value = ""
+                                        //viewModel.inputDeviceId.value = ""
                                         viewModel.isAddAccountEmpty.value = true
                                     })
                             }
@@ -533,7 +642,6 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                     )
                                 }
                                 Column(
-
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .fillMaxHeight(),
@@ -588,8 +696,8 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                             startIcon = R.drawable.ip,
                                             iconSpacing = 16.dp,
                                             textStyle = Typography.bodyMedium,
-                                            enabled = false,
-                                            readOnly = true,
+//                                            enabled = false,
+//                                            readOnly = true,
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                         )
 
@@ -639,6 +747,36 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                     }
                                     AnimatedVisibility(
                                         visible = login!!,
+                                        modifier = Modifier.offset(shakeOffset4)
+                                    ) {
+                                        CustomEdit(
+                                            text =inputDeviceId!!,
+                                            onValueChange = {
+                                                viewModel.inputDeviceId.value = it
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    start = 16.dp,
+                                                    top = if (!ipcheck) 20.dp else 0.dp,
+                                                    end = 16.dp
+                                                )
+                                                .height(50.dp)
+                                                .background(
+                                                    Color(0xFFEEEEEE),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                )
+                                                .padding(horizontal = 21.dp),
+                                            hint = "请输入设备编号",
+                                            startIcon = R.drawable.phone,
+                                            iconSpacing = 16.dp,
+                                            iconPadding = 12.dp,
+                                            textStyle = TextStyle(color = Color(0xff666666)),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                                        )
+                                    }
+                                    AnimatedVisibility(
+                                        visible = login!!,
                                         modifier = Modifier.offset(shakeOffset3)
                                     ) {
                                         CustomEdit(
@@ -670,6 +808,7 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                             keyboardActions = KeyboardActions(onDone = null)
                                         )
                                     }
+
 
 
                                 }
@@ -727,17 +866,18 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                                         ipcheck = true
                                     } else if (inputName!!.isBlank()) {
                                         shake2 = !shake2
-                                    } else if (inputPwd!!.isBlank()) {
+                                    }else if (inputDeviceId!!.isBlank()) {
+                                        shake4 = !shake4
+                                    }  else if (inputPwd!!.isBlank()) {
                                         shake3 = !shake3
                                     } else {
-                                        //login(name=inputName, pwd=inputPwd)
                                         val intent = Intent(LOGIN_ACTION)
+                                        //intent.putExtra("name", inputName+":"+inputDeviceId)
                                         intent.putExtra("name", inputName)
-                                        intent.putExtra("pwd",inputPwd)
+                                        intent.putExtra("pwd", inputPwd)
+                                        intent.putExtra("ip", inputIP)
                                         context.sendBroadcast(intent)
-
                                     }
-
                                 }
                             }) {
                             Text(
@@ -765,6 +905,8 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
 
                             }
                         }
+
+
                     }
                     Spacer(
                         modifier = if (!isExpanded!!) Modifier.fillMaxHeight() else Modifier.height(
@@ -774,9 +916,30 @@ fun LoginUI(viewModel: LoginViewModel, context: Activity) {
                 }
 
             }
+            item {
 
+
+            }
         }
     }
+//    Box(modifier = Modifier
+//        .fillMaxWidth()
+//        .fillMaxHeight()
+//
+//    ) {
+//        Text(
+//            modifier = Modifier
+//                .padding(
+//                    bottom = 20.dp,
+//                    end = 20.dp
+//                )
+//                .align(Alignment.BottomEnd),
+//            textAlign = TextAlign.End,
+//            text = "本机设备号:5676278890333",
+//            color = Color(0xffaaaaaa),
+//            fontSize = 15.sp
+//        )
+//    }
     addDialog(name = name, openDialog = openDialog, viewModel)
 }
 
@@ -983,11 +1146,9 @@ fun CustomEdit(
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
-    var context = LocalContext.current
+    //var context = LocalContext.current
 
-    NetDiskTheme() {
-        LoginUI(LoginViewModel(), context as Activity)
-    }
+    NetDiskTheme() {}
 
 }
 

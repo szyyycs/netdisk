@@ -1,5 +1,6 @@
 package com.ycs.netdisk.viewmodel
 
+import android.Manifest
 import androidx.compose.runtime.*
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -21,7 +22,10 @@ class LoginViewModel : ViewModel() {
     var isLogin = MutableLiveData(false)
     var isAddAccountEmpty=MutableLiveData(false)
     var isDelete = MutableLiveData(false)
-
+    val permissions = arrayOf(
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.READ_PRECISE_PHONE_STATE
+        )
     val defaultMMKV: MMKV by lazy {
         MMKV.defaultMMKV()
     }
@@ -32,8 +36,9 @@ class LoginViewModel : ViewModel() {
     val inputIP = MutableLiveData("127.0.0.1")
     val inputName = MutableLiveData("")
     val inputPwd = MutableLiveData("")
-
+    val inputDeviceId = MutableLiveData("")
     fun initData() {
+
         accountList.clear()
         val keys = defaultMMKV.allKeys()
         if (keys == null || keys.isEmpty()) {

@@ -14,6 +14,9 @@ class Util {
 
         const val LOGIN_ACTION = "com.ycs.LOGIN"
         const val LIST_ACTION = "com.ycs.LIST"
+        const val REQUEST_CODE = 20
     }
+
+
 
 }
